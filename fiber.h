@@ -4,27 +4,37 @@
 #include <stdlib.h>
 #include <setjmp.h>
 #include <string.h>
+#include <threads.h>
 
-typedef int (*fiber_start_func)(fiber * fb, void * arg);
+typedef int (*fiber_start_func)(fiber * fb, jmp_buf * buf, void * arg);
 typedef struct fiber fiber;
+typedef struct thread thread;
+typedef enum fiber_status fiber_status;
+
+struct thread {
+    jmp_buf buf;
+};
+
+enum fiber_status {
+    FIBER_RUNNING = 1;
+    FIBER_PAUSE = 2;
+    FIBER_EXITED = 3;
+};
+
 struct fiber {
-    jmp_buf jbuf;
+    jmp_buf buf;
     size_t frame_size;
     struct {
         void * bp;
         void * sp;
     } registers;
-    enum {
-        FIBER_RUNNING;
-        FIBER_PAUSE;
-        FIBER_EXITED;
-    } status;
+    fiber_status status;
     fiber * next;
     void * frame;
 };
 
-void fiber_init(int threads);
-fiber * fiber_create(fiber_start_func fun, void * arg);
+extern void fiber_init(int threads);
+extern fiber * fiber_create(fiber_start_func fun, void * arg);
 // macro functions
 void fiber_yield() {
     void * _bp, * _sp;
@@ -48,12 +58,18 @@ void fiber_yield() {
     memcpy(fb->frame, _sp, frame_size);
     fb->frame_size = _bp - _sp;
     // jump to thread main loop
-    if (setjmp(fb->jbuf) == 0) {
-        longjmp();
+    if (setjmp(fb->buf) == 0) {
+        longjmp((*buf), FIBER_PAUSE);
     }
 }
 
-void fiber_exit();
+void fiber_exit() {
+    longjmp((*buf), FIBER_EXITED);
+}
+
+fiber_status fiber_check_status(fiber * fb) {
+    return fb->status;
+}
 
 void fiber_join(fiber * fb);
 void fiber_detach(fiber *fb);
