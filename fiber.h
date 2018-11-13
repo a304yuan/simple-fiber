@@ -35,9 +35,24 @@ void fiber_yield() {
     );
     fb->registers.bp = _bp;
     fb->registers.sp = _sp;
+    size_t frame_size = _bp - _sp;
+    if (fb->frame_size < frame_size) {
+        if (fb->frame) {
+            fb->frame = realloc(fb->frame, frame_size);
+        }
+        else {
+            fb->frame = malloc(frame_size);
+        }
+    }
+    // copy stack frame
+    memcpy(fb->frame, _sp, frame_size);
     fb->frame_size = _bp - _sp;
-    
+    // jump to thread main loop
+    if (setjmp(fb->jbuf) == 0) {
+        longjmp();
+    }
 }
+
 void fiber_exit();
 
 void fiber_join(fiber * fb);
