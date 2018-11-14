@@ -11,16 +11,22 @@ int fiber_main_loop(void *th) {
     while (1) {
         if (fb->status == FIBER_READY) {
             // first run
-            fb->func(fb, thrd->buf, fb->arg);
+            if (setjmp(thrd->buf) == 0) {
+                fb->status = FIBER_RUNNING;
+                fb->func(fb, thrd->buf, fb->arg);
+            }
         }
         else if (fb->status == FIBER_PAUSE) {
-            if (setjmp(buf) == 0) {
+            if (setjmp(thrd->buf) == 0) {
                 // copy fiber frame
+                void * sp;
                 __asm__(
-                    "mov %%rbp, %0\n\t"
-                    "mov %%rsp, %1\n\t"
-                    : "=r"(thrd->bp), "=r"(thrd->sp)
+                    "mov %%rsp, %0\n\t"
+                    : "=r"(sp)
                 );
+                void * dest = sp - 2 * sizeof(void*) - fb->frame_size;
+                memcpy(dest, fb->frame, fb->frame_size);
+                fb->status = FIBER_RUNNING;
                 longjmp(fb->buf, FIBER_RUNNING);
             }
         }

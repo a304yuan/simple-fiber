@@ -13,8 +13,7 @@ typedef enum fiber_status fiber_status;
 
 struct thread {
     jmp_buf buf;
-    void * bp;
-    void * sp;
+    thrd_t thrd;
 };
 
 enum fiber_status {
@@ -69,6 +68,7 @@ void fiber_yield() {
 }
 
 void fiber_exit() {
+    fb->status = FIBER_EXITED;
     longjmp((*buf), FIBER_EXITED);
 }
 
