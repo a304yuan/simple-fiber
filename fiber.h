@@ -13,16 +13,21 @@ typedef enum fiber_status fiber_status;
 
 struct thread {
     jmp_buf buf;
+    void * bp;
+    void * sp;
 };
 
 enum fiber_status {
-    FIBER_RUNNING = 1;
-    FIBER_PAUSE = 2;
-    FIBER_EXITED = 3;
+    FIBER_READY = 1;
+    FIBER_RUNNING = 2;
+    FIBER_PAUSE = 3;
+    FIBER_EXITED = 4;
 };
 
 struct fiber {
     jmp_buf buf;
+    fiber_start_func func;
+    void * arg;
     size_t frame_size;
     struct {
         void * bp;
