@@ -2,44 +2,44 @@
 
 static fiber * fiber_list_head = NULL;
 static fiber * fiber_list_tail = NULL;
-static thread * thread_list = NULL;
+static thrd_t * thread_list = NULL;
 
 // thread start function
 int fiber_main_loop(void *th) {
-    thread * thrd = th;
     fiber * fb = fiber_list_head;
     while (1) {
-        if (fb->status == FIBER_READY) {
-            // first run
-            if (setjmp(thrd->buf) == 0) {
-                fb->status = FIBER_RUNNING;
-                fb->func(fb, thrd->buf, fb->arg);
-            }
+        if (fb) {
+            fb->func(fb, fb->arg);
+            fb = fb->next;
         }
-        else if (fb->status == FIBER_PAUSE) {
-            if (setjmp(thrd->buf) == 0) {
-                // copy fiber frame
-                void * sp;
-                __asm__(
-                    "mov %%rsp, %0\n\t"
-                    : "=r"(sp)
-                );
-                void * dest = sp - 2 * sizeof(void*) - fb->frame_size;
-                memcpy(dest, fb->frame, fb->frame_size);
-                fb->status = FIBER_RUNNING;
-                longjmp(fb->buf, FIBER_RUNNING);
-            }
+        else {
+            thrd_yield();
         }
-        fb = fb->next;
     }
 }
 
 void fiber_init(int threads) {
-
+    thread_list = malloc(threads * sizeof(thrd_t));
+    for (int i = 0; i < threads; i++) {
+        thrd_create(thread_list + i, fiber_main_loop, NULL);
+    }
 }
 
 fiber * fiber_create(fiber_start_func fun, void * arg) {
-
+    fiber * fb = malloc(sizeof(fiber));
+    fb->func = fun;
+    fb->arg = arg;
+    fb->frame_size = 0;
+    fb->status = FIBER_PAUSE;
+    fb->frame = NULL;
+    if (fiber_list_head) {
+        fb->next = fiber_list_head->next;
+        fiber_list_head->next = fb;
+    }
+    else {
+        fiber_list_head = fb;
+    }
+    return fb;
 }
 
 void fiber_join(fiber * fb) {
