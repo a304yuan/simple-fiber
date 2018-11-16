@@ -8,7 +8,7 @@ static thrd_t * thread_list = NULL;
 int fiber_main_loop(void *th) {
     fiber * fb = fiber_list_head;
     while (1) {
-        if (fb) {
+        if (fb && fb->status == FIBER_PAUSE) {
             fb->func(fb, fb->arg);
             fb = fb->next;
         }
@@ -25,9 +25,9 @@ void fiber_init(int threads) {
     }
 }
 
-fiber * fiber_create(fiber_start_func fun, void * arg) {
+fiber * fiber_create(fiber_start_func func, void * arg) {
     fiber * fb = malloc(sizeof(fiber));
-    fb->func = fun;
+    fb->func = func;
     fb->arg = arg;
     fb->frame_size = 0;
     fb->status = FIBER_PAUSE;
@@ -38,6 +38,7 @@ fiber * fiber_create(fiber_start_func fun, void * arg) {
     }
     else {
         fiber_list_head = fb;
+        fb->next = fb;
     }
     return fb;
 }
