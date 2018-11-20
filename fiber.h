@@ -23,6 +23,7 @@ struct fiber {
     size_t frame_size;
     struct {
         uint64_t ax, bx, cx, dx, si, di;
+        uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
     } registers;
     fiber_status status;
     fiber * next;
@@ -36,23 +37,44 @@ extern fiber * fiber_create(fiber_start_func func, void * arg);
 #define fiber_start(fb) \
     do { \
         if (fb->frame) { \
-            void * _bp, * _sp; \
-            __asm__ __volatile__ ( \
-                "mov %%rbp, %0\n\t" \
-                "mov %%rsp, %1\n\t" \
-                : "=r"(_bp), "=r"(_sp) \
+            void *_sp; \
+            __asm__( \
+                "mov %%rsp, %0\n\t" \
+                : "=r"(_sp) \
             ); \
-            atomic_thread_fence(memory_order_acq_rel); \
             memcpy(_sp, fb->frame, fb->frame_size); \
             atomic_thread_fence(memory_order_acq_rel); \
-            __asm__ __volatile__ ( \
+            __asm__( \
                 "mov %0, %%rax\n\t" \
                 "mov %1, %%rbx\n\t" \
                 "mov %2, %%rcx\n\t" \
                 "mov %3, %%rdx\n\t" \
                 "mov %4, %%rsi\n\t" \
                 "mov %5, %%rdi\n\t" \
-                :: "r"(fb->registers.ax), "r"(fb->registers.bx), "r"(fb->registers.cx), "r"(fb->registers.dx), "r"(fb->registers.si), "r"(fb->registers.di) \
+                :: "r"(fb->registers.ax), \
+                "r"(fb->registers.bx), \
+                "r"(fb->registers.cx), \
+                "r"(fb->registers.dx), \
+                "r"(fb->registers.si), \
+                "r"(fb->registers.di) \
+            ); \
+            __asm__( \
+                "mov %0, %%r8\n\t" \
+                "mov %1, %%r9\n\t" \
+                "mov %2, %%r10\n\t" \
+                "mov %3, %%r11\n\t" \
+                "mov %4, %%r12\n\t" \
+                "mov %5, %%r13\n\t" \
+                "mov %6, %%r14\n\t" \
+                "mov %7, %%r15\n\t" \
+                :: "r"(fb->registers.r8), \
+                "r"(fb->registers.r9), \
+                "r"(fb->registers.r10), \
+                "r"(fb->registers.r11), \
+                "r"(fb->registers.r12), \
+                "r"(fb->registers.r13), \
+                "r"(fb->registers.r14), \
+                "r"(fb->registers.r15) \
             ); \
             atomic_thread_fence(memory_order_acq_rel); \
             goto YIELD_POINT; \
@@ -63,7 +85,7 @@ extern fiber * fiber_create(fiber_start_func func, void * arg);
     do { \
         atomic_thread_fence(memory_order_acq_rel); \
         void * _bp, * _sp; \
-        __asm__ __volatile__ ( \
+        __asm__( \
             "mov %%rbp, %0\n\t" \
             "mov %%rsp, %1\n\t" \
             "mov %%rax, %2\n\t" \
@@ -72,7 +94,32 @@ extern fiber * fiber_create(fiber_start_func func, void * arg);
             "mov %%rdx, %5\n\t" \
             "mov %%rsi, %6\n\t" \
             "mov %%rdi, %7\n\t" \
-            : "=r"(_bp), "=r"(_sp), "=r"(fb->registers.ax), "=r"(fb->registers.bx), "=r"(fb->registers.cx), "=r"(fb->registers.dx), "=r"(fb->registers.si), "=r"(fb->registers.di) \
+            : "=r"(_bp), \
+            "=r"(_sp), \
+            "=r"(fb->registers.ax), \
+            "=r"(fb->registers.bx), \
+            "=r"(fb->registers.cx), \
+            "=r"(fb->registers.dx), \
+            "=r"(fb->registers.si), \
+            "=r"(fb->registers.di) \
+        ); \
+        __asm__( \
+            "mov %%r8, %0\n\t" \
+            "mov %%r9, %1\n\t" \
+            "mov %%r10, %2\n\t" \
+            "mov %%r11, %3\n\t" \
+            "mov %%r12, %4\n\t" \
+            "mov %%r13, %5\n\t" \
+            "mov %%r14, %6\n\t" \
+            "mov %%r15, %7\n\t" \
+            : "=r"(fb->registers.r8), \
+            "=r"(fb->registers.r9), \
+            "=r"(fb->registers.r10), \
+            "=r"(fb->registers.r11), \
+            "=r"(fb->registers.r12), \
+            "=r"(fb->registers.r13), \
+            "=r"(fb->registers.r14), \
+            "=r"(fb->registers.r15) \
         ); \
         atomic_thread_fence(memory_order_acq_rel); \
         size_t frame_size = _bp - _sp; \
