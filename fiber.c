@@ -1,8 +1,17 @@
 #include "fiber.h"
 
+// simple spin lock
+static atomic_flag _lock = ATOMIC_FLAG_INIT;
 static fiber * fiber_list_head = NULL;
-static fiber * fiber_list_tail = NULL;
 static thrd_t * thread_list = NULL;
+
+static void lock() {
+    while(atomic_flag_test_and_set_explicit(&_lock, memory_order_acquire));
+}
+
+static void unlock() {
+    atomic_flag_clear_explicit(&_lock, memory_order_release);
+}
 
 // thread start function
 int fiber_main_loop(void *th) {
@@ -41,12 +50,4 @@ fiber * fiber_create(fiber_start_func func, void * arg) {
         fb->next = fb;
     }
     return fb;
-}
-
-void fiber_join(fiber * fb) {
-
-}
-
-void fiber_detach(fiber *fb) {
-
 }

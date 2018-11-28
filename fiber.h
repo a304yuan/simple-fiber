@@ -148,7 +148,4 @@ inline fiber_status fiber_check_status(fiber * fb) {
     return fb->status;
 }
 
-extern void fiber_join(fiber * fb);
-extern void fiber_detach(fiber *fb);
-
 #endif /* end of include guard FIBER_H */
