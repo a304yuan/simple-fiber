@@ -5,20 +5,29 @@ static atomic_flag _lock = ATOMIC_FLAG_INIT;
 static fiber * fiber_list_head = NULL;
 static thrd_t * thread_list = NULL;
 
-static void lock() {
+static inline void lock() {
     while(atomic_flag_test_and_set_explicit(&_lock, memory_order_acquire));
 }
 
-static void unlock() {
+static inline void unlock() {
     atomic_flag_clear_explicit(&_lock, memory_order_release);
 }
 
 // thread start function
 int fiber_main_loop(void *th) {
-    fiber * fb = fiber_list_head;
+    fiber * fb = fiber_list_head, * prev = NULL;
     while (1) {
-        if (fb && fb->status == FIBER_PAUSE) {
-            fb->func(fb, fb->arg);
+        if (fb) {
+            if (fb->status == FIBER_PAUSE) {
+                fb->func(fb, fb->arg);
+                fb = fb->next;
+            }
+            else if (fb->status == FIBER_EXITED) {
+                // clear completed fiber
+                prev->next = fb->next;
+                free(fb->frame);
+                free(fb);
+            }
             fb = fb->next;
         }
         else {
