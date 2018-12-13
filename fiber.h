@@ -26,12 +26,11 @@ struct fiber {
         uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
     } registers;
     fiber_status status;
-    fiber * next;
     void * frame;
 };
 
 extern void fiber_init(int threads);
-extern fiber * fiber_create(fiber_start_func func, void * arg);
+extern void fiber_create(fiber_start_func func, void * arg);
 
 // macro functions
 #define fiber_start(fb) \
@@ -139,13 +138,7 @@ extern fiber * fiber_create(fiber_start_func func, void * arg);
 
 #define fiber_exit(fb) \
     do { \
-        atomic_thread_fence(memory_order_acq_rel); \
-        fb->status = FIBER_EXITED; \
         return FIBER_EXITED; \
     } while (0)
-
-inline fiber_status fiber_check_status(fiber * fb) {
-    return fb->status;
-}
 
 #endif /* end of include guard FIBER_H */
