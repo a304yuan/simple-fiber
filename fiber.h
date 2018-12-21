@@ -7,6 +7,9 @@
 #include <stdatomic.h>
 #include <threads.h>
 
+#define _YIELD_POINT_LABEL(line) YIELD_POINT##line
+#define YIELD_POINT_LABEL(line) _YIELD_POINT_LABEL(line)
+
 typedef struct fiber fiber;
 typedef enum fiber_status fiber_status;
 typedef int (*fiber_start_func)(fiber * fb, void * arg);
@@ -26,6 +29,7 @@ struct fiber {
         uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
     } registers;
     fiber_status status;
+    void * yield_point;
     void * frame;
 };
 
@@ -76,7 +80,7 @@ extern void fiber_create(fiber_start_func func, void * arg);
                 "r"(fb->registers.r15) \
             ); \
             atomic_thread_fence(memory_order_acq_rel); \
-            goto YIELD_POINT; \
+            goto *(fb->yield_point); \
         } \
     } while (0)
 
@@ -132,13 +136,11 @@ extern void fiber_create(fiber_start_func func, void * arg);
         } \
         memcpy(fb->frame, _sp, frame_size); \
         fb->frame_size = frame_size; \
-        return 0; \
-        YIELD_POINT: break; \
+        fb->yield_point = &&YIELD_POINT_LABEL(__LINE__); \
+        return FIBER_PAUSE; \
+        YIELD_POINT_LABEL(__LINE__): break; \
     } while (0)
 
-#define fiber_exit(fb) \
-    do { \
-        return FIBER_EXITED; \
-    } while (0)
+#define fiber_exit(fb) return FIBER_EXITED;
 
 #endif /* end of include guard FIBER_H */
