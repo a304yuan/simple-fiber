@@ -46,7 +46,6 @@ extern void fiber_create(fiber_start_func func, void * arg);
                 : "=r"(_sp) \
             ); \
             memcpy(_sp, fb->frame, fb->frame_size); \
-            atomic_thread_fence(memory_order_acq_rel); \
             __asm__( \
                 "mov %0, %%rax\n\t" \
                 "mov %1, %%rbx\n\t" \
@@ -79,14 +78,12 @@ extern void fiber_create(fiber_start_func func, void * arg);
                 "r"(fb->registers.r14), \
                 "r"(fb->registers.r15) \
             ); \
-            atomic_thread_fence(memory_order_acq_rel); \
             goto *(fb->yield_point); \
         } \
     } while (0)
 
 #define fiber_yield(fb) \
     do { \
-        atomic_thread_fence(memory_order_acq_rel); \
         void * _bp, * _sp; \
         __asm__( \
             "mov %%rbp, %0\n\t" \
@@ -124,7 +121,6 @@ extern void fiber_create(fiber_start_func func, void * arg);
             "=r"(fb->registers.r14), \
             "=r"(fb->registers.r15) \
         ); \
-        atomic_thread_fence(memory_order_acq_rel); \
         size_t frame_size = _bp - _sp; \
         if (fb->frame_size < frame_size) { \
             if (fb->frame) { \
