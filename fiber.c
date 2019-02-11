@@ -1,5 +1,5 @@
 #include "fiber.h"
-#include "ring_buffer.h"
+#include "simple-ring-buffer/ring_buffer.h"
 
 static thrd_t * thread_list = NULL;
 static ring_buffer * fiber_list = NULL;
