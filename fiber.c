@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <threads.h>
 #include "fiber.h"
 #include "simple-ring-buffer/ring_buffer.h"
 
@@ -11,11 +13,13 @@ int fiber_main_loop(void *th) {
         if (ring_buffer_read(fiber_list, &fb)) {
             fb->status = FIBER_RUNNING;
             if (fb->func(fb, fb->arg) == FIBER_EXITED) {
-                free(fb->frame);
+                if (fb->defunc) {
+                    fb->defunc(fb);
+                }
                 free(fb);
             }
             else {
-                fb->status = FIBER_PAUSE;
+                fb->status = FIBER_PAUSED;
                 ring_buffer_write(fiber_list, &fb);
             }
         }
@@ -25,20 +29,20 @@ int fiber_main_loop(void *th) {
     }
 }
 
-void fiber_init(int threads) {
-    fiber_list = ring_buffer_new(sizeof(fiber*), 1024);
+void fiber_init(int threads, long max_fibers) {
+    fiber_list = ring_buffer_new(sizeof(fiber*), max_fibers);
     thread_list = malloc(threads * sizeof(thrd_t));
     for (int i = 0; i < threads; i++) {
         thrd_create(thread_list + i, fiber_main_loop, NULL);
     }
 }
 
-void fiber_create(fiber_start_func func, void * arg) {
+int fiber_create(fiber_start_func func, void * arg, fiber_deallocator defunc) {
     fiber * fb = malloc(sizeof(fiber));
     fb->func = func;
+    fb->defunc = defunc;
     fb->arg = arg;
-    fb->frame_size = 0;
-    fb->status = FIBER_PAUSE;
-    fb->frame = NULL;
-    ring_buffer_write(fiber_list, &fb);
+    fb->status = FIBER_PAUSED;
+    fb->yield_point = NULL;
+    return ring_buffer_write(fiber_list, &fb);
 }

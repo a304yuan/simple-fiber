@@ -1,142 +1,45 @@
 #ifndef FIBER_H
 #define FIBER_H
 
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <stdatomic.h>
-#include <threads.h>
-
 #define _YIELD_POINT_LABEL(line) YIELD_POINT##line
 #define YIELD_POINT_LABEL(line) _YIELD_POINT_LABEL(line)
 
 typedef struct fiber fiber;
-typedef enum fiber_status fiber_status;
 typedef int (*fiber_start_func)(fiber * fb, void * arg);
+typedef void (*fiber_deallocator)(fiber * fb);
 
 enum fiber_status {
-    FIBER_RUNNING = 2,
-    FIBER_PAUSE = 3,
-    FIBER_EXITED = 4
+    FIBER_RUNNING,
+    FIBER_PAUSED,
+    FIBER_EXITED
 };
 
 struct fiber {
+    enum fiber_status status;
     fiber_start_func func;
+    fiber_deallocator defunc;
     void * arg;
-    size_t frame_size;
-    struct {
-        uint64_t ax, bx, cx, dx, si, di;
-        uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
-    } registers;
-    fiber_status status;
     void * yield_point;
-    void * frame;
 };
 
-extern void fiber_init(int threads);
-extern void fiber_create(fiber_start_func func, void * arg);
+extern void fiber_init(int threads, long max_fibers);
+extern int fiber_create(fiber_start_func func, void * arg, fiber_deallocator defunc);
 
 // macro functions
 #define fiber_start(fb) \
     do { \
-        if (fb->frame) { \
-            void *_sp; \
-            __asm__( \
-                "mov %%rsp, %0\n\t" \
-                : "=r"(_sp) \
-            ); \
-            memcpy(_sp, fb->frame, fb->frame_size); \
-            __asm__( \
-                "mov %0, %%rax\n\t" \
-                "mov %1, %%rbx\n\t" \
-                "mov %2, %%rcx\n\t" \
-                "mov %3, %%rdx\n\t" \
-                "mov %4, %%rsi\n\t" \
-                "mov %5, %%rdi\n\t" \
-                :: "r"(fb->registers.ax), \
-                "r"(fb->registers.bx), \
-                "r"(fb->registers.cx), \
-                "r"(fb->registers.dx), \
-                "r"(fb->registers.si), \
-                "r"(fb->registers.di) \
-            ); \
-            __asm__( \
-                "mov %0, %%r8\n\t" \
-                "mov %1, %%r9\n\t" \
-                "mov %2, %%r10\n\t" \
-                "mov %3, %%r11\n\t" \
-                "mov %4, %%r12\n\t" \
-                "mov %5, %%r13\n\t" \
-                "mov %6, %%r14\n\t" \
-                "mov %7, %%r15\n\t" \
-                :: "r"(fb->registers.r8), \
-                "r"(fb->registers.r9), \
-                "r"(fb->registers.r10), \
-                "r"(fb->registers.r11), \
-                "r"(fb->registers.r12), \
-                "r"(fb->registers.r13), \
-                "r"(fb->registers.r14), \
-                "r"(fb->registers.r15) \
-            ); \
+        if (fb->yield_point) { \
             goto *(fb->yield_point); \
         } \
     } while (0)
 
 #define fiber_yield(fb) \
     do { \
-        void * _bp, * _sp; \
-        __asm__( \
-            "mov %%rbp, %0\n\t" \
-            "mov %%rsp, %1\n\t" \
-            "mov %%rax, %2\n\t" \
-            "mov %%rbx, %3\n\t" \
-            "mov %%rcx, %4\n\t" \
-            "mov %%rdx, %5\n\t" \
-            "mov %%rsi, %6\n\t" \
-            "mov %%rdi, %7\n\t" \
-            : "=r"(_bp), \
-            "=r"(_sp), \
-            "=r"(fb->registers.ax), \
-            "=r"(fb->registers.bx), \
-            "=r"(fb->registers.cx), \
-            "=r"(fb->registers.dx), \
-            "=r"(fb->registers.si), \
-            "=r"(fb->registers.di) \
-        ); \
-        __asm__( \
-            "mov %%r8, %0\n\t" \
-            "mov %%r9, %1\n\t" \
-            "mov %%r10, %2\n\t" \
-            "mov %%r11, %3\n\t" \
-            "mov %%r12, %4\n\t" \
-            "mov %%r13, %5\n\t" \
-            "mov %%r14, %6\n\t" \
-            "mov %%r15, %7\n\t" \
-            : "=r"(fb->registers.r8), \
-            "=r"(fb->registers.r9), \
-            "=r"(fb->registers.r10), \
-            "=r"(fb->registers.r11), \
-            "=r"(fb->registers.r12), \
-            "=r"(fb->registers.r13), \
-            "=r"(fb->registers.r14), \
-            "=r"(fb->registers.r15) \
-        ); \
-        size_t frame_size = _bp - _sp; \
-        if (fb->frame_size < frame_size) { \
-            if (fb->frame) { \
-                fb->frame = realloc(fb->frame, frame_size); \
-            } \
-            else { \
-                fb->frame = malloc(frame_size); \
-            } \
-        } \
-        memcpy(fb->frame, _sp, frame_size); \
-        fb->frame_size = frame_size; \
         fb->yield_point = &&YIELD_POINT_LABEL(__LINE__); \
-        return FIBER_PAUSE; \
+        return FIBER_PAUSED; \
         YIELD_POINT_LABEL(__LINE__): break; \
     } while (0)
 
-#define fiber_exit(fb) return FIBER_EXITED;
+#define fiber_exit(fb) return FIBER_EXITED
 
 #endif /* end of include guard FIBER_H */
