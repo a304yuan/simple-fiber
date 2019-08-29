@@ -11,15 +11,19 @@ int fiber_main_loop(void *th) {
     fiber * fb = NULL;
     while (1) {
         if (ring_buffer_read(fiber_list, &fb)) {
-            fb->status = FIBER_RUNNING;
-            if (fb->func(fb, fb->arg) == FIBER_EXITED) {
-                if (fb->defunc) {
-                    fb->defunc(fb);
+            if (fb->next_run <= clock()) {
+                int status = fb->func(fb, fb->arg);
+                if (status == FIBER_EXITED) {
+                    if (fb->defunc) {
+                        fb->defunc(fb);
+                    }
+                    free(fb);
                 }
-                free(fb);
+                else {
+                    ring_buffer_write(fiber_list, &fb);
+                }
             }
             else {
-                fb->status = FIBER_PAUSED;
                 ring_buffer_write(fiber_list, &fb);
             }
         }
@@ -43,6 +47,7 @@ int fiber_create(fiber_start_func func, void * arg, fiber_deallocator defunc) {
     fb->defunc = defunc;
     fb->arg = arg;
     fb->status = FIBER_PAUSED;
+    fb->next_run = 0;
     fb->yield_point = NULL;
     return ring_buffer_write(fiber_list, &fb);
 }
